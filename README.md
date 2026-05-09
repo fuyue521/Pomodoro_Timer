@@ -71,8 +71,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/fuyue521/pomodoro-timer.git
-cd pomodoro-timer
+git clone https://github.com/fuyue521/Pomodoro_Timer.git
+cd Pomodoro_Timer
 
 # 安装依赖
 npm install
