@@ -474,6 +474,21 @@ colorSpark.addEventListener('input', () => {
   setSparkColor(colorSpark.value);
 });
 
+// --- Fullscreen toggle ---
+const btnFullscreen = document.getElementById('btn-fullscreen');
+
+btnFullscreen.addEventListener('click', () => {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    document.documentElement.requestFullscreen();
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  btnFullscreen.classList.toggle('is-fullscreen', !!document.fullscreenElement);
+});
+
 // --- Theme toggle ---
 const btnTheme = document.getElementById('btn-theme');
 const themeRipple = document.getElementById('theme-ripple');
