@@ -1,0 +1,84 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]: 专注 · 0/4
+    - generic [ref=e5]: 25:00
+    - generic [ref=e6]:
+      - button "开始 / 暂停" [ref=e7] [cursor=pointer]:
+        - img [ref=e8]
+      - button "重置" [ref=e10] [cursor=pointer]:
+        - img [ref=e11]
+    - button "全屏" [ref=e13] [cursor=pointer]:
+      - img [ref=e14]
+      - img [ref=e19]
+    - button "切换主题" [ref=e24] [cursor=pointer]:
+      - img [ref=e25]
+    - button "设置" [ref=e28] [cursor=pointer]:
+      - img [ref=e29]
+  - generic:
+    - generic:
+      - button "时间":
+        - generic: 时间
+        - img
+      - generic:
+        - generic:
+          - generic: 专注时长 25 分钟
+          - slider: "25"
+        - generic:
+          - generic: 休息时长 5 分钟
+          - slider: "5"
+        - generic:
+          - generic: 循环次数 4 次
+          - slider: "4"
+        - generic:
+          - generic: 总时长约 2h
+    - generic:
+      - button "自定义":
+        - generic: 自定义
+        - img
+      - generic:
+        - generic: 背景粒子
+        - generic:
+          - generic: 粒子颜色
+          - textbox: "#0066ff"
+        - generic:
+          - generic: 粒子大小 0.04
+          - slider: "0.04"
+        - generic:
+          - generic: 透明度 0.50
+          - slider: "0.5"
+        - generic:
+          - generic: 拖尾长度 1.0
+          - slider: "1"
+        - generic: 光环
+        - generic:
+          - generic: 时间环颜色
+          - textbox: "#3d362b"
+        - generic:
+          - generic: 端点粒子颜色
+          - textbox: "#e05520"
+    - generic:
+      - button "关于作者":
+        - generic: 关于作者
+        - img
+  - generic:
+    - generic:
+      - button:
+        - img
+      - generic: 🍅
+      - heading "番茄钟" [level=2]
+      - paragraph: v1.0.0
+      - paragraph:
+        - text: 基于 Three.js 的 3D 沉浸式番茄工作法计时器。
+        - text: 在深邃的空间中感受时间的流动，专注每一刻。
+      - generic:
+        - generic: 作者
+        - generic: fuyue521
+      - generic:
+        - link "GitHub":
+          - /url: https://github.com/fuyue521
+          - img
+          - text: GitHub
+        - link "Email":
+          - /url: mailto:Zz_println@outlook.com
+          - img
+          - text: Email

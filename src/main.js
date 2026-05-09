@@ -1,5 +1,5 @@
 import { initScene } from './scene.js';
-import { createParticles, updateParticles, setParticleColor, getParticleColor, setParticleMode, setParticleSize, setParticleOpacity, setTrailLength } from './particles.js';
+import { createParticles, updateParticles, setParticleColor, getParticleColor, setParticleMode, setParticleSize, setParticleOpacity, setTrailLength, setParticlesVisible } from './particles.js';
 import { createTimer } from './timer.js';
 import { playFocusEndSound, playBreakEndSound } from './audio.js';
 import { initRing, setRingProgress, setSparkColor, setRingColor, getRingColor, getSparkColor, renderRing, resize as resizeRing } from './ring.js';
@@ -28,31 +28,55 @@ function getTheme() {
   return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
 
+// --- Per-theme custom color memory ---
+const customColors = { dark: {}, light: {} };
+
+(function loadCustomColors() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('pomodoro-custom-colors'));
+    if (saved) {
+      if (saved.dark) customColors.dark = saved.dark;
+      if (saved.light) customColors.light = saved.light;
+    }
+  } catch {}
+})();
+
+function saveCustomColors() {
+  try { localStorage.setItem('pomodoro-custom-colors', JSON.stringify(customColors)); } catch {}
+}
+
+function getColorForTheme(theme, key, defaultVal) {
+  return customColors[theme]?.[key] ?? defaultVal;
+}
+
+function setColorForTheme(theme, key, value) {
+  if (!customColors[theme]) customColors[theme] = {};
+  customColors[theme][key] = value;
+  saveCustomColors();
+}
+
 function applyTheme(theme, prev) {
   document.documentElement.dataset.theme = theme;
   const t = THEME[theme];
-  const pt = prev ? THEME[prev] : null;
 
   renderer.setClearColor(t.bg3d);
 
-  // Only reset colors that still match the previous theme's default (preserve user customizations)
-  if (!pt) {
-    setParticleColor(particlesData.particles, t.particle);
-    setRingColor(t.ring);
-    setSparkColor(t.spark);
-  } else {
-    if (getParticleColor(particlesData.particles) === pt.particle) {
-      setParticleColor(particlesData.particles, t.particle);
-      if (colorParticle) colorParticle.value = t.particle;
-    }
-    if (getRingColor() === pt.ring) {
-      setRingColor(t.ring);
-      if (colorRing) colorRing.value = t.ring;
-    }
-    if (getSparkColor() === pt.spark) {
-      setSparkColor(t.spark);
-      if (colorSpark) colorSpark.value = t.spark;
-    }
+  const pColor = getColorForTheme(theme, 'particle', t.particle);
+  setParticleColor(particlesData.particles, pColor);
+  if (colorParticle) colorParticle.value = pColor;
+
+  const rColor = getColorForTheme(theme, 'ring', t.ring);
+  setRingColor(rColor);
+  if (colorRing) colorRing.value = rColor;
+
+  const sColor = getColorForTheme(theme, 'spark', t.spark);
+  setSparkColor(sColor);
+  if (colorSpark) colorSpark.value = sColor;
+
+  const particlesVisible = customColors[theme]?.particlesVisible ?? false;
+  setParticlesVisible(particlesVisible);
+  if (toggleParticles) {
+    toggleParticles.classList.toggle('active', particlesVisible);
   }
 
   try { localStorage.setItem('pomodoro-theme', theme); } catch {}
@@ -470,17 +494,28 @@ document.addEventListener('keydown', (e) => {
 const colorParticle = document.getElementById('color-particle');
 const colorRing = document.getElementById('color-ring');
 const colorSpark = document.getElementById('color-spark');
+const toggleParticles = document.getElementById('toggle-particles');
 
 colorParticle.addEventListener('input', () => {
   setParticleColor(particlesData.particles, colorParticle.value);
+  setColorForTheme(getTheme(), 'particle', colorParticle.value);
 });
 
 colorRing.addEventListener('input', () => {
   setRingColor(colorRing.value);
+  setColorForTheme(getTheme(), 'ring', colorRing.value);
 });
 
 colorSpark.addEventListener('input', () => {
   setSparkColor(colorSpark.value);
+  setColorForTheme(getTheme(), 'spark', colorSpark.value);
+});
+
+toggleParticles.addEventListener('click', () => {
+  const visible = !toggleParticles.classList.contains('active');
+  toggleParticles.classList.toggle('active', visible);
+  setParticlesVisible(visible);
+  setColorForTheme(getTheme(), 'particlesVisible', visible);
 });
 
 // --- Particle sliders ---
