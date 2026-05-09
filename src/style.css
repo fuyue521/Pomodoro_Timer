@@ -414,6 +414,14 @@ body {
   font-weight: 500;
 }
 
+.subsection-label {
+  font-size: 10px;
+  color: var(--section-title);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 2px;
+}
+
 .setting-row input[type="range"] {
   -webkit-appearance: none;
   appearance: none;

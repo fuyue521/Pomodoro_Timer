@@ -1,5 +1,5 @@
 import { initScene } from './scene.js';
-import { createParticles, updateParticles, setParticleColor, getParticleColor } from './particles.js';
+import { createParticles, updateParticles, setParticleColor, getParticleColor, setParticleMode, setParticleSize, setParticleOpacity, setTrailLength } from './particles.js';
 import { createTimer } from './timer.js';
 import { playFocusEndSound, playBreakEndSound } from './audio.js';
 import { initRing, setRingProgress, setSparkColor, setRingColor, getRingColor, getSparkColor, renderRing, resize as resizeRing } from './ring.js';
@@ -120,6 +120,10 @@ function updateModeLabel() {
   modeLabel.textContent = (mode === 'focus' ? '专注' : '休息') + cycleInfo;
 }
 
+function updateParticleMode() {
+  setParticleMode(mode === 'focus' && timer.isRunning() ? 'orbit' : 'float');
+}
+
 // --- Mode switching ---
 function switchMode(newMode) {
   mode = newMode;
@@ -139,6 +143,7 @@ function switchMode(newMode) {
   iconPlay.style.display = 'none';
   iconPause.style.display = '';
   timer.start();
+  updateParticleMode();
 }
 
 function addPomodoroDot() {
@@ -171,6 +176,7 @@ const timer = createTimer(
         iconPlay.style.display = '';
         iconPause.style.display = 'none';
         setRingProgress(1, false);
+        updateParticleMode();
         modeLabel.textContent = '完成';
         modeLabel.classList.remove('mode-focus', 'mode-break');
         modeLabel.classList.add('mode-focus');
@@ -202,6 +208,7 @@ btnPlay.addEventListener('click', () => {
     iconPlay.style.display = '';
     iconPause.style.display = 'none';
     setRingProgress(timer.getRemainingMs() / timer.getTotalMs(), false);
+    updateParticleMode();
   } else {
     if (allFinished) {
       resetToFocus();
@@ -210,6 +217,7 @@ btnPlay.addEventListener('click', () => {
     iconPlay.style.display = 'none';
     iconPause.style.display = '';
     setRingProgress(timer.getRemainingMs() / timer.getTotalMs(), true);
+    updateParticleMode();
   }
 });
 
@@ -219,6 +227,7 @@ btnReset.addEventListener('click', () => {
   iconPlay.style.display = '';
   iconPause.style.display = 'none';
   setRingProgress(1, false);
+  updateParticleMode();
 });
 
 // --- Settings panel ---
@@ -472,6 +481,32 @@ colorRing.addEventListener('input', () => {
 
 colorSpark.addEventListener('input', () => {
   setSparkColor(colorSpark.value);
+});
+
+// --- Particle sliders ---
+const particleSizeSlider = document.getElementById('particle-size');
+const particleSizeVal = document.getElementById('particle-size-val');
+const particleOpacitySlider = document.getElementById('particle-opacity');
+const particleOpacityVal = document.getElementById('particle-opacity-val');
+const trailLengthSlider = document.getElementById('trail-length');
+const trailLengthVal = document.getElementById('trail-length-val');
+
+particleSizeSlider.addEventListener('input', () => {
+  const val = parseFloat(particleSizeSlider.value);
+  particleSizeVal.textContent = val.toFixed(3);
+  setParticleSize(val);
+});
+
+particleOpacitySlider.addEventListener('input', () => {
+  const val = parseFloat(particleOpacitySlider.value);
+  particleOpacityVal.textContent = val.toFixed(2);
+  setParticleOpacity(val);
+});
+
+trailLengthSlider.addEventListener('input', () => {
+  const val = parseFloat(trailLengthSlider.value);
+  trailLengthVal.textContent = val.toFixed(1);
+  setTrailLength(val);
 });
 
 // --- Fullscreen toggle ---
