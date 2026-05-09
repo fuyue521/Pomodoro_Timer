@@ -63,19 +63,6 @@ export function setRingColor(color) {
   ringColor = color;
 }
 
-export function getSparkColor() {
-  return sparkColor;
-}
-
-export function getRingColor() {
-  return ringColor;
-}
-
-export function clearSparks() {
-  sparks.length = 0;
-  spawnAccumulator = 0;
-}
-
 export function renderRing(dt) {
   if (!ctx) return;
 

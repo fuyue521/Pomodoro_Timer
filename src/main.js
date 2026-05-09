@@ -1,8 +1,8 @@
 import { initScene } from './scene.js';
-import { createParticles, updateParticles, setParticleColor, getParticleColor, setParticleMode, setParticleSize, setParticleOpacity, setTrailLength, setParticlesVisible } from './particles.js';
+import { createParticles, updateParticles, setParticleColor, setParticleMode, setParticleSize, setParticleOpacity, setTrailLength, setParticlesVisible } from './particles.js';
 import { createTimer } from './timer.js';
 import { playFocusEndSound, playBreakEndSound } from './audio.js';
-import { initRing, setRingProgress, setSparkColor, setRingColor, getRingColor, getSparkColor, renderRing, resize as resizeRing } from './ring.js';
+import { initRing, setRingProgress, setSparkColor, setRingColor, renderRing, resize as resizeRing } from './ring.js';
 
 // --- Constants ---
 const FOCUS_COLOR = '#FF6B35';
@@ -55,14 +55,14 @@ function setColorForTheme(theme, key, value) {
   saveCustomColors();
 }
 
-function applyTheme(theme, prev) {
+function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   const t = THEME[theme];
 
   renderer.setClearColor(t.bg3d);
 
   const pColor = getColorForTheme(theme, 'particle', t.particle);
-  setParticleColor(particlesData.particles, pColor);
+  setParticleColor(pColor);
   if (colorParticle) colorParticle.value = pColor;
 
   const rColor = getColorForTheme(theme, 'ring', t.ring);
@@ -73,7 +73,7 @@ function applyTheme(theme, prev) {
   setSparkColor(sColor);
   if (colorSpark) colorSpark.value = sColor;
 
-  const particlesVisible = customColors[theme]?.particlesVisible ?? false;
+  const particlesVisible = getColorForTheme(theme, 'particlesVisible', false);
   setParticlesVisible(particlesVisible);
   if (toggleParticles) {
     toggleParticles.classList.toggle('active', particlesVisible);
@@ -114,7 +114,7 @@ function formatTotalTime(totalMin) {
 
 // --- Three.js setup ---
 const { renderer, camera, scene } = initScene(canvas);
-const particlesData = createParticles(scene);
+createParticles(scene);
 
 // --- Ring setup ---
 initRing(ringCanvas);
@@ -293,6 +293,7 @@ focusSlider.addEventListener('input', () => {
     timer.setDuration(val);
     setRingProgress(1, false);
   }
+
 });
 
 breakSlider.addEventListener('input', () => {
@@ -497,7 +498,7 @@ const colorSpark = document.getElementById('color-spark');
 const toggleParticles = document.getElementById('toggle-particles');
 
 colorParticle.addEventListener('input', () => {
-  setParticleColor(particlesData.particles, colorParticle.value);
+  setParticleColor(colorParticle.value);
   setColorForTheme(getTheme(), 'particle', colorParticle.value);
 });
 
@@ -587,7 +588,7 @@ btnTheme.addEventListener('click', () => {
 
   function onEnd() {
     themeRipple.removeEventListener('transitionend', onEnd);
-    applyTheme(next, prev);
+    applyTheme(next);
 
     // Ring "emerge from water" effect: snap to blurry, then transition to sharp
     ringCanvas.style.transition = 'none';
@@ -625,7 +626,7 @@ function animate() {
   requestAnimationFrame(animate);
 
   timer.tick();
-  updateParticles(particlesData, deltaTime);
+  updateParticles(deltaTime);
   renderRing(deltaTime);
 
   if (aboutBackdrop.classList.contains('open')) {

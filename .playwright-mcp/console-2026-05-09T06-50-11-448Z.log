@@ -1,3 +1,0 @@
-[  446819ms] [ERROR] THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN. The "position" attribute is likely to have NaN values. BufferGeometry @ http://localhost:5175/@vite/client:509
-[  457111ms] [ERROR] THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN. The "position" attribute is likely to have NaN values. BufferGeometry @ http://localhost:5175/@vite/client:509
-[  471504ms] [ERROR] THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN. The "position" attribute is likely to have NaN values. BufferGeometry @ http://localhost:5175/@vite/client:509

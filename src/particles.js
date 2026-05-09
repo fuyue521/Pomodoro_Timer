@@ -112,14 +112,14 @@ export function createParticles(scene) {
   trailTriMesh.frustumCulled = false;
   scene.add(trailTriMesh);
 
-  return { particles: mainPoints, mainPoints };
+  return mainPoints;
 }
 
 export function setParticleMode(newMode) {
   mode = newMode;
 }
 
-export function updateParticles(particlesData, deltaTime) {
+export function updateParticles(deltaTime) {
   const dt = Math.min(deltaTime, 0.1);
   const positions = mainGeo.attributes.position.array;
 
@@ -306,7 +306,7 @@ function hexToRgb(hex) {
   };
 }
 
-export function setParticleColor(particles, hex) {
+export function setParticleColor(hex) {
   mainMat.color.set(hex);
   const { r, g, b } = hexToRgb(hex);
   particleR = r;
@@ -314,7 +314,7 @@ export function setParticleColor(particles, hex) {
   particleB = b;
 }
 
-export function getParticleColor(particles) {
+export function getParticleColor() {
   return '#' + mainMat.color.getHexString();
 }
 
@@ -322,16 +322,8 @@ export function setParticleSize(size) {
   mainMat.size = size;
 }
 
-export function getParticleSize() {
-  return mainMat.size;
-}
-
 export function setParticleOpacity(opacity) {
   mainMat.opacity = opacity;
-}
-
-export function getParticleOpacity() {
-  return mainMat.opacity;
 }
 
 export function setTrailLength(factor) {

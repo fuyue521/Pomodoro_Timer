@@ -7,3 +7,4 @@ dist/
 *.gif
 *.svg
 playwright-mcp/
+.playwright-mcp/
