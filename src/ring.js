@@ -19,6 +19,7 @@ let sparkColor = '#ffaa66';
 let ringColor = '#ffffff';
 let spawnAccumulator = 0;
 let progress = 1;
+let displayedProgress = 1; // lerped for smooth edge movement
 let running = false;
 let ringRadius = calcRingSize();
 let ringWidth = ringRadius * 0.04;
@@ -43,9 +44,13 @@ export function resize() {
 }
 
 export function setRingProgress(p, r) {
+  // Snap on large jumps (reset, mode switch)
+  if (Math.abs(p - progress) > 0.1) {
+    displayedProgress = p;
+  }
   progress = p;
   if (running && !r) {
-    spawnAccumulator = 0; // prevent burst on next start
+    spawnAccumulator = 0;
   }
   running = r;
 }
@@ -81,8 +86,12 @@ export function renderRing(dt) {
 
   ctx.clearRect(0, 0, w, h);
 
+  // Smooth lerp toward target progress
+  const lerpSpeed = 12;
+  displayedProgress += (progress - displayedProgress) * (1 - Math.exp(-lerpSpeed * dt));
+
   const startAngle = -Math.PI / 2;
-  const endAngle = startAngle + progress * Math.PI * 2;
+  const endAngle = startAngle + displayedProgress * Math.PI * 2;
 
   // --- Spawn sparks opposite to edge movement direction ---
   // Edge moves CCW as arc shrinks → sparks spray CW (trailing behind)
