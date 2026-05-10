@@ -1,10 +1,11 @@
 node_modules/
 dist/
 .vite/
-*.png
 *.jpg
 *.jpeg
 *.gif
 *.svg
 playwright-mcp/
 .playwright-mcp/
+src-tauri/target/
+release/

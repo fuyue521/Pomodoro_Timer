@@ -1,8 +1,12 @@
+import { createLogger } from './logger.js';
 import { initScene } from './scene.js';
 import { createParticles, updateParticles, setParticleColor, setParticleMode, setParticleSize, setParticleOpacity, setTrailLength, setParticlesVisible } from './particles.js';
 import { createTimer } from './timer.js';
 import { playFocusEndSound, playBreakEndSound } from './audio.js';
 import { initRing, setRingProgress, setSparkColor, setRingColor, renderRing, resize as resizeRing } from './ring.js';
+import { isTauri, closeWindow, minimizeWindow, toggleAlwaysOnTop, setFullscreen, isFullscreen, sendNotification, requestNotificationPermission, updateTrayStatus, listenTrayEvent, isAutostartEnabled, setAutostart, checkUpdate } from './tauri-api.js';
+
+const log = createLogger('main');
 
 // --- Constants ---
 const FOCUS_COLOR = '#FF6B35';
@@ -37,8 +41,11 @@ const customColors = { dark: {}, light: {} };
     if (saved) {
       if (saved.dark) customColors.dark = saved.dark;
       if (saved.light) customColors.light = saved.light;
+      log.info('自定义颜色已加载');
     }
-  } catch {}
+  } catch (err) {
+    log.error('加载自定义颜色失败', err);
+  }
 })();
 
 function saveCustomColors() {
@@ -56,6 +63,7 @@ function setColorForTheme(theme, key, value) {
 }
 
 function applyTheme(theme) {
+  log.info('应用主题', { theme });
   document.documentElement.dataset.theme = theme;
   const t = THEME[theme];
 
@@ -127,15 +135,11 @@ let allFinished = false;
 
 // --- Notification ---
 function notify(title, body) {
-  if (Notification.permission === 'granted') {
-    new Notification(title, { body });
-  }
+  sendNotification(title, body);
 }
 
-function requestNotification() {
-  if (Notification.permission === 'default') {
-    Notification.requestPermission();
-  }
+async function requestNotification() {
+  await requestNotificationPermission();
 }
 
 // --- Cycle display ---
@@ -150,6 +154,7 @@ function updateParticleMode() {
 
 // --- Mode switching ---
 function switchMode(newMode) {
+  log.info('切换模式', { from: mode, to: newMode });
   mode = newMode;
   modeLabel.classList.remove('mode-focus', 'mode-break');
   timeDisplay.classList.remove('mode-focus', 'mode-break');
@@ -181,8 +186,10 @@ const timer = createTimer(
   (remainingSec, totalSec) => {
     timeDisplay.textContent = formatTime(remainingSec);
     setRingProgress(remainingSec / totalSec, timer.isRunning());
+    pushTrayStatus();
   },
   () => {
+    log.info('计时结束', { mode, completedPomodoros: pomodoroCount, completedCycles });
     if (mode === 'focus') {
       completedCycles++;
       pomodoroCount++;
@@ -190,11 +197,13 @@ const timer = createTimer(
       updateModeLabel();
       playFocusEndSound();
       notify('番茄完成', '休息一下吧 🍅');
+      log.info('番茄完成，切换到休息模式', { pomodoroCount, completedCycles });
       switchMode('break');
     } else {
       playBreakEndSound();
       if (completedCycles >= cycleCount) {
         allFinished = true;
+        log.info('全部循环完成', { totalCycles: cycleCount, completedPomodoros: pomodoroCount });
         notify('全部完成', `已完成 ${cycleCount} 个循环 🎉`);
         timer.reset();
         iconPlay.style.display = '';
@@ -205,6 +214,7 @@ const timer = createTimer(
         modeLabel.classList.remove('mode-focus', 'mode-break');
         modeLabel.classList.add('mode-focus');
       } else {
+        log.info('休息结束，切换到专注模式');
         notify('休息结束', '开始新的番茄');
         switchMode('focus');
       }
@@ -228,35 +238,43 @@ function resetToFocus() {
 btnPlay.addEventListener('click', () => {
   requestNotification();
   if (timer.isRunning()) {
+    log.info('暂停计时器');
     timer.pause();
     iconPlay.style.display = '';
     iconPause.style.display = 'none';
     setRingProgress(timer.getRemainingMs() / timer.getTotalMs(), false);
     updateParticleMode();
+    pushTrayStatus();
   } else {
     if (allFinished) {
+      log.info('重新开始（从完成状态）');
       resetToFocus();
     }
+    log.info('开始计时器', { mode, remainingMs: timer.getRemainingMs() });
     timer.start();
     iconPlay.style.display = 'none';
     iconPause.style.display = '';
     setRingProgress(timer.getRemainingMs() / timer.getTotalMs(), true);
     updateParticleMode();
+    pushTrayStatus();
   }
 });
 
 btnReset.addEventListener('click', () => {
+  log.info('重置计时器');
   resetToFocus();
   timer.reset();
   iconPlay.style.display = '';
   iconPause.style.display = 'none';
   setRingProgress(1, false);
   updateParticleMode();
+  pushTrayStatus();
 });
 
-// --- Settings panel ---
+// --- Settings modal ---
 const btnSettings = document.getElementById('btn-settings');
-const settingsPanel = document.getElementById('settings-panel');
+const settingsBackdrop = document.getElementById('settings-backdrop');
+const settingsClose = document.getElementById('settings-close');
 const focusSlider = document.getElementById('focus-duration');
 const breakSlider = document.getElementById('break-duration');
 const cycleSlider = document.getElementById('cycle-count');
@@ -270,22 +288,46 @@ function updateTotalTime() {
   totalTimeEl.textContent = formatTotalTime(totalMin);
 }
 
+function openSettings() {
+  log.info('打开设置面板');
+  updateTotalTime();
+  settingsBackdrop.classList.add('open');
+}
+
+function closeSettings() {
+  log.info('关闭设置面板');
+  settingsBackdrop.classList.remove('open');
+}
+
 btnSettings.addEventListener('click', (e) => {
   e.stopPropagation();
-  updateTotalTime();
-  settingsPanel.classList.toggle('hidden');
+  openSettings();
 });
 
-document.addEventListener('click', (e) => {
-  if (!settingsPanel.classList.contains('hidden') &&
-      !settingsPanel.contains(e.target) &&
-      e.target !== btnSettings) {
-    settingsPanel.classList.add('hidden');
+settingsClose.addEventListener('click', () => {
+  closeSettings();
+});
+
+settingsBackdrop.addEventListener('click', (e) => {
+  if (e.target === settingsBackdrop) {
+    closeSettings();
   }
+});
+
+// --- Section collapse/expand ---
+document.querySelectorAll('.section-header').forEach(header => {
+  header.addEventListener('click', () => {
+    const body = header.nextElementSibling;
+    if (!body || !body.classList.contains('section-body')) return; // about section has no body
+    const collapsed = body.classList.toggle('collapsed');
+    header.classList.toggle('collapsed', collapsed);
+    log.info(collapsed ? '收起面板' : '展开面板', { section: header.querySelector('.scs-title')?.textContent });
+  });
 });
 
 focusSlider.addEventListener('input', () => {
   const val = parseInt(focusSlider.value);
+  log.info('专注时长调整', { minutes: val });
   focusVal.textContent = val;
   focusMinutes = val;
   updateTotalTime();
@@ -298,6 +340,7 @@ focusSlider.addEventListener('input', () => {
 
 breakSlider.addEventListener('input', () => {
   const val = parseInt(breakSlider.value);
+  log.info('休息时长调整', { minutes: val });
   breakVal.textContent = val;
   breakMinutes = val;
   updateTotalTime();
@@ -309,24 +352,12 @@ breakSlider.addEventListener('input', () => {
 
 cycleSlider.addEventListener('input', () => {
   const val = parseInt(cycleSlider.value);
+  log.info('循环次数调整', { cycles: val });
   cycleVal.textContent = val;
   cycleCount = val;
   updateTotalTime();
   updateModeLabel();
 });
-
-// --- Section toggles ---
-function setupSectionToggle(toggleId, bodyId) {
-  const toggle = document.getElementById(toggleId);
-  const body = document.getElementById(bodyId);
-  toggle.addEventListener('click', () => {
-    body.classList.toggle('collapsed');
-    toggle.classList.toggle('collapsed');
-  });
-}
-
-setupSectionToggle('section-time-toggle', 'section-time-body');
-setupSectionToggle('section-custom-toggle', 'section-custom-body');
 
 // --- About modal ---
 const aboutBackdrop = document.getElementById('about-backdrop');
@@ -460,6 +491,8 @@ function renderAboutParticles() {
 }
 
 function openAbout() {
+  log.info('打开关于面板');
+  closeSettings();
   aboutParticles.length = 0;
   aboutParticleSpawnAcc = 0;
   initAboutParticleCanvas();
@@ -467,6 +500,7 @@ function openAbout() {
 }
 
 function closeAbout() {
+  log.info('关闭关于面板');
   aboutBackdrop.classList.remove('open');
 }
 
@@ -486,8 +520,13 @@ aboutBackdrop.addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && aboutBackdrop.classList.contains('open')) {
-    closeAbout();
+  if (e.key === 'Escape') {
+    if (settingsBackdrop.classList.contains('open')) {
+      closeSettings();
+    }
+    if (aboutBackdrop.classList.contains('open')) {
+      closeAbout();
+    }
   }
 });
 
@@ -498,22 +537,26 @@ const colorSpark = document.getElementById('color-spark');
 const toggleParticles = document.getElementById('toggle-particles');
 
 colorParticle.addEventListener('input', () => {
+  log.info('粒子颜色变更', { color: colorParticle.value });
   setParticleColor(colorParticle.value);
   setColorForTheme(getTheme(), 'particle', colorParticle.value);
 });
 
 colorRing.addEventListener('input', () => {
+  log.info('光环颜色变更', { color: colorRing.value });
   setRingColor(colorRing.value);
   setColorForTheme(getTheme(), 'ring', colorRing.value);
 });
 
 colorSpark.addEventListener('input', () => {
+  log.info('端点粒子颜色变更', { color: colorSpark.value });
   setSparkColor(colorSpark.value);
   setColorForTheme(getTheme(), 'spark', colorSpark.value);
 });
 
 toggleParticles.addEventListener('click', () => {
   const visible = !toggleParticles.classList.contains('active');
+  log.info('粒子特效开关', { visible });
   toggleParticles.classList.toggle('active', visible);
   setParticlesVisible(visible);
   setColorForTheme(getTheme(), 'particlesVisible', visible);
@@ -529,18 +572,21 @@ const trailLengthVal = document.getElementById('trail-length-val');
 
 particleSizeSlider.addEventListener('input', () => {
   const val = parseFloat(particleSizeSlider.value);
+  log.info('粒子大小调整', { size: val });
   particleSizeVal.textContent = val.toFixed(3);
   setParticleSize(val);
 });
 
 particleOpacitySlider.addEventListener('input', () => {
   const val = parseFloat(particleOpacitySlider.value);
+  log.info('粒子透明度调整', { opacity: val });
   particleOpacityVal.textContent = val.toFixed(2);
   setParticleOpacity(val);
 });
 
 trailLengthSlider.addEventListener('input', () => {
   const val = parseFloat(trailLengthSlider.value);
+  log.info('拖尾长度调整', { length: val });
   trailLengthVal.textContent = val.toFixed(1);
   setTrailLength(val);
 });
@@ -548,16 +594,15 @@ trailLengthSlider.addEventListener('input', () => {
 // --- Fullscreen toggle ---
 const btnFullscreen = document.getElementById('btn-fullscreen');
 
-btnFullscreen.addEventListener('click', () => {
-  if (document.fullscreenElement) {
-    document.exitFullscreen();
-  } else {
-    document.documentElement.requestFullscreen();
+btnFullscreen.addEventListener('click', async () => {
+  const full = await isFullscreen();
+  log.info('全屏切换', { from: full, to: !full });
+  try {
+    await setFullscreen(!full);
+    btnFullscreen.classList.toggle('is-fullscreen', !full);
+  } catch (err) {
+    log.error('全屏切换失败', err);
   }
-});
-
-document.addEventListener('fullscreenchange', () => {
-  btnFullscreen.classList.toggle('is-fullscreen', !!document.fullscreenElement);
 });
 
 // --- Theme toggle ---
@@ -567,6 +612,7 @@ const themeRipple = document.getElementById('theme-ripple');
 btnTheme.addEventListener('click', () => {
   const prev = getTheme();
   const next = prev === 'dark' ? 'light' : 'dark';
+  log.info('主题切换', { from: prev, to: next });
   const t = THEME[next];
 
   const rect = btnTheme.getBoundingClientRect();
@@ -605,14 +651,129 @@ btnTheme.addEventListener('click', () => {
   themeRipple.addEventListener('transitionend', onEnd);
 });
 
+// --- Tray integration ---
+let trayAlwaysOnTop = false;
+
+function pushTrayStatus() {
+  if (!isTauri) return;
+  const remaining = timer.getRemainingMs();
+  const status = `${mode === 'focus' ? '专注' : '休息'} ${formatTime(Math.ceil(remaining / 1000))} · ${completedCycles}/${cycleCount}`;
+  const playPause = timer.isRunning() ? '暂停' : '开始';
+  updateTrayStatus(status, playPause, trayAlwaysOnTop);
+}
+
+function showUpdateDialog(update) {
+  log.info('显示更新对话框', { version: update.version });
+  const msg = `新版本 ${update.version} 可用\n\n${update.body || ''}\n\n是否立即更新？`;
+  if (confirm(msg)) {
+    log.info('用户确认更新');
+    if (window.__TAURI__?.updater) {
+      window.__TAURI__.updater.downloadAndInstall().catch(err => {
+        log.error('更新下载安装失败', err);
+      });
+    }
+  } else {
+    log.info('用户取消更新');
+  }
+}
+
 // --- Init ---
-(function init() {
+(async function init() {
+  log.info('=== 番茄钟初始化开始 ===');
+  log.info('运行环境', { isTauri, userAgent: navigator.userAgent });
+
   const saved = (() => { try { return localStorage.getItem('pomodoro-theme'); } catch { return null; } })();
   applyTheme(saved || 'dark');
 
   modeLabel.classList.add('mode-focus');
   timeDisplay.classList.add('mode-focus');
   updateModeLabel();
+
+  // Window controls
+  const btnMinimize = document.getElementById('btn-minimize');
+  const btnClose = document.getElementById('btn-close');
+  if (btnMinimize) btnMinimize.addEventListener('click', () => minimizeWindow());
+  if (btnClose) btnClose.addEventListener('click', () => closeWindow());
+
+  // Tauri event listeners
+  if (isTauri) {
+    log.info('注册 Tauri 事件监听');
+    const { getCurrentWindow } = window.__TAURI__.window;
+
+    getCurrentWindow().listen('tauri://resize', () => {
+      getCurrentWindow().isFullscreen().then(f => {
+        btnFullscreen.classList.toggle('is-fullscreen', f);
+      });
+    });
+
+    // Tray menu events
+    listenTrayEvent('tray:play-pause', () => {
+      log.info('托盘菜单：播放/暂停');
+      btnPlay.click();
+    });
+    listenTrayEvent('tray:reset', () => {
+      log.info('托盘菜单：重置');
+      btnReset.click();
+    });
+    listenTrayEvent('tray:toggle-always-on-top', async () => {
+      log.info('托盘菜单：切换置顶');
+      try {
+        trayAlwaysOnTop = await toggleAlwaysOnTop();
+        pushTrayStatus();
+      } catch (err) {
+        log.error('托盘置顶切换失败', err);
+      }
+    });
+    listenTrayEvent('tray:check-update', async () => {
+      log.info('托盘菜单：检查更新');
+      try {
+        const update = await checkUpdate();
+        if (update?.available) {
+          showUpdateDialog(update);
+        } else if (update) {
+          sendNotification('番茄钟', '已是最新版本');
+          log.info('当前已是最新版本');
+        }
+      } catch (err) {
+        log.error('托盘更新检查失败', err);
+      }
+    });
+
+    // Startup update check
+    setTimeout(async () => {
+      log.info('启动后自动检查更新');
+      try {
+        const update = await checkUpdate();
+        if (update?.available) showUpdateDialog(update);
+      } catch (err) {
+        log.error('启动更新检查失败', err);
+      }
+    }, 3000);
+
+    // Autostart toggle
+    const toggleAutostart = document.getElementById('toggle-autostart');
+    if (toggleAutostart) {
+      try {
+        const enabled = await isAutostartEnabled();
+        toggleAutostart.classList.toggle('active', enabled);
+        log.info('开机自启初始状态', { enabled });
+      } catch (err) {
+        log.error('读取开机自启状态失败', err);
+      }
+      toggleAutostart.addEventListener('click', async () => {
+        const enabled = !toggleAutostart.classList.contains('active');
+        log.info('切换开机自启', { enabled });
+        try {
+          await setAutostart(enabled);
+          toggleAutostart.classList.toggle('active', enabled);
+        } catch (err) {
+          log.error('设置开机自启失败', err);
+        }
+      });
+    }
+  }
+
+  log.info('=== 番茄钟初始化完成 ===');
 })();
 
 // --- Animation loop ---
@@ -638,8 +799,18 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+// --- Global error handler ---
+window.addEventListener('error', (e) => {
+  log.error('未捕获的错误', { message: e.message, source: e.filename, line: e.lineno });
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  log.error('未处理的 Promise 拒绝', { reason: e.reason });
+});
+
 // --- Resize ---
 window.addEventListener('resize', () => {
+  log.debug('窗口大小变更', { width: window.innerWidth, height: window.innerHeight });
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
