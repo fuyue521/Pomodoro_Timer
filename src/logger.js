@@ -17,17 +17,6 @@ export function createLogger(module) {
   function log(level, method, msg, data) {
     const text = format(level, module, msg, data);
     console[method](text);
-
-    // Forward to Tauri Rust log if available
-    if (typeof window !== 'undefined' && window.__TAURI__?.log) {
-      try {
-        const tauriLog = window.__TAURI__.log;
-        if (method === 'error') tauriLog.error(text);
-        else if (method === 'warn') tauriLog.warn(text);
-        else if (method === 'debug') tauriLog.debug(text);
-        else tauriLog.info(text);
-      } catch {}
-    }
   }
 
   return {

@@ -78,20 +78,6 @@ body {
   background: var(--bg-deep);
 }
 
-#drag-zone {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 40px;
-  z-index: 6;
-  cursor: grab;
-}
-
-#drag-zone:active {
-  cursor: grabbing;
-}
-
 #window-controls {
   position: fixed;
   top: 10px;
@@ -119,11 +105,6 @@ body {
 .window-btn:hover {
   background: var(--btn-hover);
   color: var(--btn-color-hover);
-}
-
-#btn-close:hover {
-  background: rgba(232, 17, 35, 0.25);
-  color: #e81123;
 }
 
 /* Vignette overlay */

@@ -4,7 +4,6 @@ import { createParticles, updateParticles, setParticleColor, setParticleMode, se
 import { createTimer } from './timer.js';
 import { playFocusEndSound, playBreakEndSound } from './audio.js';
 import { initRing, setRingProgress, setSparkColor, setRingColor, renderRing, resize as resizeRing } from './ring.js';
-import { isTauri, closeWindow, minimizeWindow, toggleAlwaysOnTop, setFullscreen, isFullscreen, sendNotification, requestNotificationPermission, updateTrayStatus, listenTrayEvent, isAutostartEnabled, setAutostart, checkUpdate } from './tauri-api.js';
 
 const log = createLogger('main');
 
@@ -135,11 +134,15 @@ let allFinished = false;
 
 // --- Notification ---
 function notify(title, body) {
-  sendNotification(title, body);
+  if (Notification.permission === 'granted') {
+    try { new Notification(title, { body }); } catch {}
+  }
 }
 
 async function requestNotification() {
-  await requestNotificationPermission();
+  if (Notification.permission === 'default') {
+    try { await Notification.requestPermission(); } catch {}
+  }
 }
 
 // --- Cycle display ---
@@ -186,7 +189,6 @@ const timer = createTimer(
   (remainingSec, totalSec) => {
     timeDisplay.textContent = formatTime(remainingSec);
     setRingProgress(remainingSec / totalSec, timer.isRunning());
-    pushTrayStatus();
   },
   () => {
     log.info('计时结束', { mode, completedPomodoros: pomodoroCount, completedCycles });
@@ -244,7 +246,6 @@ btnPlay.addEventListener('click', () => {
     iconPause.style.display = 'none';
     setRingProgress(timer.getRemainingMs() / timer.getTotalMs(), false);
     updateParticleMode();
-    pushTrayStatus();
   } else {
     if (allFinished) {
       log.info('重新开始（从完成状态）');
@@ -256,7 +257,6 @@ btnPlay.addEventListener('click', () => {
     iconPause.style.display = '';
     setRingProgress(timer.getRemainingMs() / timer.getTotalMs(), true);
     updateParticleMode();
-    pushTrayStatus();
   }
 });
 
@@ -268,7 +268,6 @@ btnReset.addEventListener('click', () => {
   iconPause.style.display = 'none';
   setRingProgress(1, false);
   updateParticleMode();
-  pushTrayStatus();
 });
 
 // --- Settings modal ---
@@ -595,10 +594,13 @@ trailLengthSlider.addEventListener('input', () => {
 const btnFullscreen = document.getElementById('btn-fullscreen');
 
 btnFullscreen.addEventListener('click', async () => {
-  const full = await isFullscreen();
-  log.info('全屏切换', { from: full, to: !full });
+  const full = !!document.fullscreenElement;
   try {
-    await setFullscreen(!full);
+    if (full) {
+      await document.exitFullscreen();
+    } else {
+      await document.documentElement.requestFullscreen();
+    }
     btnFullscreen.classList.toggle('is-fullscreen', !full);
   } catch (err) {
     log.error('全屏切换失败', err);
@@ -651,36 +653,10 @@ btnTheme.addEventListener('click', () => {
   themeRipple.addEventListener('transitionend', onEnd);
 });
 
-// --- Tray integration ---
-let trayAlwaysOnTop = false;
-
-function pushTrayStatus() {
-  if (!isTauri) return;
-  const remaining = timer.getRemainingMs();
-  const status = `${mode === 'focus' ? '专注' : '休息'} ${formatTime(Math.ceil(remaining / 1000))} · ${completedCycles}/${cycleCount}`;
-  const playPause = timer.isRunning() ? '暂停' : '开始';
-  updateTrayStatus(status, playPause, trayAlwaysOnTop);
-}
-
-function showUpdateDialog(update) {
-  log.info('显示更新对话框', { version: update.version });
-  const msg = `新版本 ${update.version} 可用\n\n${update.body || ''}\n\n是否立即更新？`;
-  if (confirm(msg)) {
-    log.info('用户确认更新');
-    if (window.__TAURI__?.updater) {
-      window.__TAURI__.updater.downloadAndInstall().catch(err => {
-        log.error('更新下载安装失败', err);
-      });
-    }
-  } else {
-    log.info('用户取消更新');
-  }
-}
-
 // --- Init ---
 (async function init() {
   log.info('=== 番茄钟初始化开始 ===');
-  log.info('运行环境', { isTauri, userAgent: navigator.userAgent });
+  log.info('运行环境', { userAgent: navigator.userAgent });
 
   const saved = (() => { try { return localStorage.getItem('pomodoro-theme'); } catch { return null; } })();
   applyTheme(saved || 'dark');
@@ -688,90 +664,6 @@ function showUpdateDialog(update) {
   modeLabel.classList.add('mode-focus');
   timeDisplay.classList.add('mode-focus');
   updateModeLabel();
-
-  // Window controls
-  const btnMinimize = document.getElementById('btn-minimize');
-  const btnClose = document.getElementById('btn-close');
-  if (btnMinimize) btnMinimize.addEventListener('click', () => minimizeWindow());
-  if (btnClose) btnClose.addEventListener('click', () => closeWindow());
-
-  // Tauri event listeners
-  if (isTauri) {
-    log.info('注册 Tauri 事件监听');
-    const { getCurrentWindow } = window.__TAURI__.window;
-
-    getCurrentWindow().listen('tauri://resize', () => {
-      getCurrentWindow().isFullscreen().then(f => {
-        btnFullscreen.classList.toggle('is-fullscreen', f);
-      });
-    });
-
-    // Tray menu events
-    listenTrayEvent('tray:play-pause', () => {
-      log.info('托盘菜单：播放/暂停');
-      btnPlay.click();
-    });
-    listenTrayEvent('tray:reset', () => {
-      log.info('托盘菜单：重置');
-      btnReset.click();
-    });
-    listenTrayEvent('tray:toggle-always-on-top', async () => {
-      log.info('托盘菜单：切换置顶');
-      try {
-        trayAlwaysOnTop = await toggleAlwaysOnTop();
-        pushTrayStatus();
-      } catch (err) {
-        log.error('托盘置顶切换失败', err);
-      }
-    });
-    listenTrayEvent('tray:check-update', async () => {
-      log.info('托盘菜单：检查更新');
-      try {
-        const update = await checkUpdate();
-        if (update?.available) {
-          showUpdateDialog(update);
-        } else if (update) {
-          sendNotification('番茄钟', '已是最新版本');
-          log.info('当前已是最新版本');
-        }
-      } catch (err) {
-        log.error('托盘更新检查失败', err);
-      }
-    });
-
-    // Startup update check
-    setTimeout(async () => {
-      log.info('启动后自动检查更新');
-      try {
-        const update = await checkUpdate();
-        if (update?.available) showUpdateDialog(update);
-      } catch (err) {
-        log.error('启动更新检查失败', err);
-      }
-    }, 3000);
-
-    // Autostart toggle
-    const toggleAutostart = document.getElementById('toggle-autostart');
-    if (toggleAutostart) {
-      try {
-        const enabled = await isAutostartEnabled();
-        toggleAutostart.classList.toggle('active', enabled);
-        log.info('开机自启初始状态', { enabled });
-      } catch (err) {
-        log.error('读取开机自启状态失败', err);
-      }
-      toggleAutostart.addEventListener('click', async () => {
-        const enabled = !toggleAutostart.classList.contains('active');
-        log.info('切换开机自启', { enabled });
-        try {
-          await setAutostart(enabled);
-          toggleAutostart.classList.toggle('active', enabled);
-        } catch (err) {
-          log.error('设置开机自启失败', err);
-        }
-      });
-    }
-  }
 
   log.info('=== 番茄钟初始化完成 ===');
 })();
