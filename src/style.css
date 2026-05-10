@@ -4,6 +4,7 @@
   --text-dim: rgba(240, 230, 211, 0.65);
   --accent-focus: #FF6B35;
   --accent-break: #4CAF50;
+  --accent-longbreak: #4A90D9;
   --btn-bg: rgba(255, 255, 255, 0.06);
   --btn-border: rgba(255, 255, 255, 0.1);
   --btn-hover: rgba(255, 255, 255, 0.12);
@@ -22,6 +23,7 @@
   --vignette: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%);
   --text-glow-focus: rgba(255, 107, 53, 0.3);
   --text-glow-break: rgba(76, 175, 80, 0.3);
+  --text-glow-longbreak: rgba(74, 144, 217, 0.3);
   --input-bg: rgba(255, 255, 255, 0.06);
   --input-border: rgba(255, 255, 255, 0.1);
   --modal-backdrop: rgba(10, 10, 10, 0.30);
@@ -33,6 +35,7 @@
   --text-dim: rgba(42, 37, 32, 0.62);
   --accent-focus: #c44a1a;
   --accent-break: #2d6b30;
+  --accent-longbreak: #2a6cb6;
   --btn-bg: rgba(0, 0, 0, 0.04);
   --btn-border: rgba(0, 0, 0, 0.1);
   --btn-hover: rgba(0, 0, 0, 0.08);
@@ -51,6 +54,7 @@
   --vignette: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.08) 100%);
   --text-glow-focus: rgba(224, 85, 32, 0.15);
   --text-glow-break: rgba(56, 133, 60, 0.15);
+  --text-glow-longbreak: rgba(42, 108, 182, 0.15);
   --input-bg: rgba(0, 0, 0, 0.03);
   --input-border: rgba(0, 0, 0, 0.12);
   --modal-backdrop: rgba(240, 235, 225, 0.45);
@@ -161,6 +165,7 @@ body {
 
 #mode-label.mode-focus { color: var(--accent-focus); }
 #mode-label.mode-break { color: var(--accent-break); }
+#mode-label.mode-longbreak { color: var(--accent-longbreak); }
 
 #time-display {
   font-family: 'DM Mono', monospace;
@@ -178,6 +183,10 @@ body {
 
 #time-display.mode-break {
   text-shadow: 0 0 clamp(20px, 3vmin, 40px) var(--text-glow-break);
+}
+
+#time-display.mode-longbreak {
+  text-shadow: 0 0 clamp(20px, 3vmin, 40px) var(--text-glow-longbreak);
 }
 
 #pomodoro-dots {
@@ -535,6 +544,7 @@ body {
   border-radius: 2px;
   background: var(--slider-track);
   outline: none;
+  transition: background 0.15s ease;
 }
 
 .setting-row input[type="range"]::-webkit-slider-thumb {
@@ -545,6 +555,16 @@ body {
   background: var(--accent-focus);
   cursor: pointer;
   border: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.setting-row input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+}
+
+.setting-row input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+  box-shadow: 0 0 12px var(--accent-focus);
 }
 
 .total-row {

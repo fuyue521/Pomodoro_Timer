@@ -19,10 +19,17 @@ let sparkColor = '#ffaa66';
 let ringColor = '#ffffff';
 let spawnAccumulator = 0;
 let progress = 1;
-let displayedProgress = 1; // lerped for smooth edge movement
+let displayedProgress = 1;
 let running = false;
 let ringRadius = calcRingSize();
 let ringWidth = ringRadius * 0.04;
+
+// Refill animation state
+let refillActive = false;
+let refillStart = 0;
+let refillTarget = 0;
+let refillDuration = 0.8; // seconds
+let refillElapsed = 0;
 
 export function initRing(canvasEl) {
   canvas = canvasEl;
@@ -44,9 +51,12 @@ export function resize() {
 }
 
 export function setRingProgress(p, r) {
-  // Snap on large jumps (reset, mode switch)
-  if (Math.abs(p - progress) > 0.1) {
-    displayedProgress = p;
+  // Detect refill: progress jumps up (reset or mode switch)
+  if (p - progress > 0.05) {
+    refillActive = true;
+    refillStart = displayedProgress;
+    refillTarget = p;
+    refillElapsed = 0;
   }
   progress = p;
   if (running && !r) {
@@ -73,17 +83,27 @@ export function renderRing(dt) {
 
   ctx.clearRect(0, 0, w, h);
 
-  // Smooth lerp toward target progress
-  const lerpSpeed = 12;
-  displayedProgress += (progress - displayedProgress) * (1 - Math.exp(-lerpSpeed * dt));
+  // Animate displayedProgress
+  if (refillActive) {
+    refillElapsed += dt;
+    const t = Math.min(refillElapsed / refillDuration, 1);
+    // ease-in-out cubic: slow → fast → slow
+    const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    displayedProgress = refillStart + (refillTarget - refillStart) * eased;
+    if (t >= 1) {
+      refillActive = false;
+    }
+  } else {
+    const lerpSpeed = 12;
+    displayedProgress += (progress - displayedProgress) * (1 - Math.exp(-lerpSpeed * dt));
+  }
 
   const startAngle = -Math.PI / 2;
   const endAngle = startAngle + displayedProgress * Math.PI * 2;
 
-  // --- Spawn sparks opposite to edge movement direction ---
-  // Edge moves CCW as arc shrinks → sparks spray CW (trailing behind)
   const scale = ringRadius / 160;
-  if (running && progress > 0 && progress < 1) {
+  const showSparks = (running || refillActive) && displayedProgress > 0 && displayedProgress < 0.999;
+  if (showSparks) {
     const edgeX = cx + ringRadius * Math.cos(endAngle);
     const edgeY = cy + ringRadius * Math.sin(endAngle);
     const sprayDir = endAngle + Math.PI / 2;
@@ -105,7 +125,7 @@ export function renderRing(dt) {
     }
   }
 
-  // --- Update & draw sparks ---
+  // Update & draw sparks
   for (let i = sparks.length - 1; i >= 0; i--) {
     const s = sparks[i];
     s.x += s.vx;
@@ -128,7 +148,7 @@ export function renderRing(dt) {
     sparks.splice(0, sparks.length - 300);
   }
 
-  // --- Draw remaining arc ---
+  // Draw remaining arc
   ctx.beginPath();
   ctx.arc(cx, cy, ringRadius, startAngle, endAngle, false);
   ctx.strokeStyle = hexToRgba(ringColor, 0.9);
@@ -136,15 +156,15 @@ export function renderRing(dt) {
   ctx.lineCap = 'round';
   ctx.stroke();
 
-  // --- Subtle outer glow ---
+  // Subtle outer glow
   ctx.beginPath();
   ctx.arc(cx, cy, ringRadius, startAngle, endAngle, false);
   ctx.strokeStyle = hexToRgba(ringColor, 0.12);
   ctx.lineWidth = ringWidth + ringWidth * 0.8;
   ctx.stroke();
 
-  // --- Leading edge glow dot ---
-  if (progress > 0 && progress < 1) {
+  // Leading edge glow dot
+  if (displayedProgress > 0 && displayedProgress < 1) {
     const dotR = ringWidth * 0.7;
     const glowR = ringWidth * 1.6;
     const ex = cx + ringRadius * Math.cos(endAngle);

@@ -10,6 +10,7 @@ const log = createLogger('main');
 // --- Constants ---
 const FOCUS_COLOR = '#FF6B35';
 const BREAK_COLOR = '#4CAF50';
+const LONGBREAK_COLOR = '#4A90D9';
 
 // --- Theme ---
 const THEME = {
@@ -87,11 +88,23 @@ function applyTheme(theme) {
   }
 
   try { localStorage.setItem('pomodoro-theme', theme); } catch {}
+
+  // Refresh slider track fills to match new theme
+  if (focusSlider) {
+    updateSliderFill(focusSlider);
+    updateSliderFill(breakSlider);
+    updateSliderFill(longbreakSlider);
+    updateSliderFill(cycleSlider);
+    updateSliderFill(particleSizeSlider);
+    updateSliderFill(particleOpacitySlider);
+    updateSliderFill(trailLengthSlider);
+  }
 }
 
 // --- Settings (mutable) ---
 let focusMinutes = 25;
 let breakMinutes = 5;
+let longBreakMinutes = 15;
 let cycleCount = 4;
 
 // --- DOM elements ---
@@ -128,6 +141,7 @@ initRing(ringCanvas);
 
 // --- State ---
 let mode = 'focus';
+let isLongBreak = false;
 let pomodoroCount = 0;
 let completedCycles = 0;
 let allFinished = false;
@@ -148,7 +162,8 @@ async function requestNotification() {
 // --- Cycle display ---
 function updateModeLabel() {
   const cycleInfo = ` · ${completedCycles}/${cycleCount}`;
-  modeLabel.textContent = (mode === 'focus' ? '专注' : '休息') + cycleInfo;
+  const label = mode === 'focus' ? '专注' : isLongBreak ? '长休息' : '休息';
+  modeLabel.textContent = label + cycleInfo;
 }
 
 function updateParticleMode() {
@@ -156,15 +171,20 @@ function updateParticleMode() {
 }
 
 // --- Mode switching ---
-function switchMode(newMode) {
-  log.info('切换模式', { from: mode, to: newMode });
+function switchMode(newMode, longBreak = false) {
+  log.info('切换模式', { from: mode, to: newMode, longBreak });
   mode = newMode;
-  modeLabel.classList.remove('mode-focus', 'mode-break');
-  timeDisplay.classList.remove('mode-focus', 'mode-break');
+  isLongBreak = longBreak;
+  modeLabel.classList.remove('mode-focus', 'mode-break', 'mode-longbreak');
+  timeDisplay.classList.remove('mode-focus', 'mode-break', 'mode-longbreak');
   if (mode === 'focus') {
     modeLabel.classList.add('mode-focus');
     timeDisplay.classList.add('mode-focus');
     timer.setDuration(focusMinutes);
+  } else if (longBreak) {
+    modeLabel.classList.add('mode-longbreak');
+    timeDisplay.classList.add('mode-longbreak');
+    timer.setDuration(longBreakMinutes);
   } else {
     modeLabel.classList.add('mode-break');
     timeDisplay.classList.add('mode-break');
@@ -198,11 +218,6 @@ const timer = createTimer(
       addPomodoroDot();
       updateModeLabel();
       playFocusEndSound();
-      notify('番茄完成', '休息一下吧 🍅');
-      log.info('番茄完成，切换到休息模式', { pomodoroCount, completedCycles });
-      switchMode('break');
-    } else {
-      playBreakEndSound();
       if (completedCycles >= cycleCount) {
         allFinished = true;
         log.info('全部循环完成', { totalCycles: cycleCount, completedPomodoros: pomodoroCount });
@@ -213,13 +228,19 @@ const timer = createTimer(
         setRingProgress(1, false);
         updateParticleMode();
         modeLabel.textContent = '完成';
-        modeLabel.classList.remove('mode-focus', 'mode-break');
+        modeLabel.classList.remove('mode-focus', 'mode-break', 'mode-longbreak');
         modeLabel.classList.add('mode-focus');
       } else {
-        log.info('休息结束，切换到专注模式');
-        notify('休息结束', '开始新的番茄');
-        switchMode('focus');
+        const doLongBreak = completedCycles > 0 && completedCycles % 4 === 0;
+        notify('番茄完成', doLongBreak ? '来个长休息吧 🍅' : '休息一下吧 🍅');
+        log.info('番茄完成，切换到休息模式', { pomodoroCount, completedCycles, longBreak: doLongBreak });
+        switchMode('break', doLongBreak);
       }
+    } else {
+      playBreakEndSound();
+      log.info('休息结束，切换到专注模式');
+      notify('休息结束', '开始新的番茄');
+      switchMode('focus');
     }
   }
 );
@@ -227,10 +248,11 @@ const timer = createTimer(
 function resetToFocus() {
   allFinished = false;
   completedCycles = 0;
+  isLongBreak = false;
   mode = 'focus';
-  modeLabel.classList.remove('mode-focus', 'mode-break');
+  modeLabel.classList.remove('mode-focus', 'mode-break', 'mode-longbreak');
   modeLabel.classList.add('mode-focus');
-  timeDisplay.classList.remove('mode-focus', 'mode-break');
+  timeDisplay.classList.remove('mode-focus', 'mode-break', 'mode-longbreak');
   timeDisplay.classList.add('mode-focus');
   timer.setDuration(focusMinutes);
   updateModeLabel();
@@ -279,11 +301,16 @@ const breakSlider = document.getElementById('break-duration');
 const cycleSlider = document.getElementById('cycle-count');
 const focusVal = document.getElementById('focus-val');
 const breakVal = document.getElementById('break-val');
+const longbreakVal = document.getElementById('longbreak-val');
 const cycleVal = document.getElementById('cycle-val');
 const totalTimeEl = document.getElementById('total-time');
+const longbreakSlider = document.getElementById('longbreak-duration');
 
 function updateTotalTime() {
-  const totalMin = cycleCount * (focusMinutes + breakMinutes);
+  const totalBreaks = cycleCount - 1;
+  const longBreaks = Math.floor(totalBreaks / 4);
+  const shortBreaks = totalBreaks - longBreaks;
+  const totalMin = cycleCount * focusMinutes + shortBreaks * breakMinutes + longBreaks * longBreakMinutes;
   totalTimeEl.textContent = formatTotalTime(totalMin);
 }
 
@@ -324,23 +351,47 @@ document.querySelectorAll('.section-header').forEach(header => {
   });
 });
 
+// Smooth value animation
+function animateValue(el, target, duration = 200, decimals = 0) {
+  const start = parseFloat(el.textContent);
+  if (start === target) return;
+  const startTime = performance.now();
+  function step(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out
+    const val = start + (target - start) * eased;
+    el.textContent = decimals > 0 ? val.toFixed(decimals) : Math.round(val);
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// Track fill for range sliders
+function updateSliderFill(slider) {
+  const pct = ((slider.value - slider.min) / (slider.max - slider.min)) * 100;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent-focus').trim();
+  const track = getComputedStyle(document.documentElement).getPropertyValue('--slider-track').trim();
+  slider.style.background = `linear-gradient(to right, ${accent} 0%, ${accent} ${pct}%, ${track} ${pct}%, ${track} 100%)`;
+}
+
 focusSlider.addEventListener('input', () => {
   const val = parseInt(focusSlider.value);
   log.info('专注时长调整', { minutes: val });
-  focusVal.textContent = val;
+  animateValue(focusVal, val);
+  updateSliderFill(focusSlider);
   focusMinutes = val;
   updateTotalTime();
   if (mode === 'focus' && !timer.isRunning()) {
     timer.setDuration(val);
     setRingProgress(1, false);
   }
-
 });
 
 breakSlider.addEventListener('input', () => {
   const val = parseInt(breakSlider.value);
   log.info('休息时长调整', { minutes: val });
-  breakVal.textContent = val;
+  animateValue(breakVal, val);
+  updateSliderFill(breakSlider);
   breakMinutes = val;
   updateTotalTime();
   if (mode === 'break' && !timer.isRunning()) {
@@ -349,10 +400,24 @@ breakSlider.addEventListener('input', () => {
   }
 });
 
+longbreakSlider.addEventListener('input', () => {
+  const val = parseInt(longbreakSlider.value);
+  log.info('长休息时长调整', { minutes: val });
+  animateValue(longbreakVal, val);
+  updateSliderFill(longbreakSlider);
+  longBreakMinutes = val;
+  updateTotalTime();
+  if (isLongBreak && !timer.isRunning()) {
+    timer.setDuration(val);
+    setRingProgress(1, false);
+  }
+});
+
 cycleSlider.addEventListener('input', () => {
   const val = parseInt(cycleSlider.value);
   log.info('循环次数调整', { cycles: val });
-  cycleVal.textContent = val;
+  animateValue(cycleVal, val);
+  updateSliderFill(cycleSlider);
   cycleCount = val;
   updateTotalTime();
   updateModeLabel();
@@ -572,21 +637,24 @@ const trailLengthVal = document.getElementById('trail-length-val');
 particleSizeSlider.addEventListener('input', () => {
   const val = parseFloat(particleSizeSlider.value);
   log.info('粒子大小调整', { size: val });
-  particleSizeVal.textContent = val.toFixed(3);
+  animateValue(particleSizeVal, val, 200, 3);
+  updateSliderFill(particleSizeSlider);
   setParticleSize(val);
 });
 
 particleOpacitySlider.addEventListener('input', () => {
   const val = parseFloat(particleOpacitySlider.value);
   log.info('粒子透明度调整', { opacity: val });
-  particleOpacityVal.textContent = val.toFixed(2);
+  animateValue(particleOpacityVal, val, 200, 2);
+  updateSliderFill(particleOpacitySlider);
   setParticleOpacity(val);
 });
 
 trailLengthSlider.addEventListener('input', () => {
   const val = parseFloat(trailLengthSlider.value);
   log.info('拖尾长度调整', { length: val });
-  trailLengthVal.textContent = val.toFixed(1);
+  animateValue(trailLengthVal, val, 200, 1);
+  updateSliderFill(trailLengthSlider);
   setTrailLength(val);
 });
 
@@ -664,6 +732,15 @@ btnTheme.addEventListener('click', () => {
   modeLabel.classList.add('mode-focus');
   timeDisplay.classList.add('mode-focus');
   updateModeLabel();
+
+  // Initialize slider track fills
+  updateSliderFill(focusSlider);
+  updateSliderFill(breakSlider);
+  updateSliderFill(longbreakSlider);
+  updateSliderFill(cycleSlider);
+  updateSliderFill(particleSizeSlider);
+  updateSliderFill(particleOpacitySlider);
+  updateSliderFill(trailLengthSlider);
 
   log.info('=== 番茄钟初始化完成 ===');
 })();

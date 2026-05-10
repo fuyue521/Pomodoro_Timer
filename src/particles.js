@@ -51,12 +51,28 @@ export function createParticles(scene) {
     particleTransitions[i] = 0;
   }
 
+  // --- Circle texture for point sprites ---
+  const texSize = 64;
+  const texCanvas = document.createElement('canvas');
+  texCanvas.width = texSize;
+  texCanvas.height = texSize;
+  const texCtx = texCanvas.getContext('2d');
+  const gradient = texCtx.createRadialGradient(texSize / 2, texSize / 2, 0, texSize / 2, texSize / 2, texSize / 2);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.3, 'rgba(255,255,255,0.9)');
+  gradient.addColorStop(0.7, 'rgba(255,255,255,0.3)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  texCtx.fillStyle = gradient;
+  texCtx.fillRect(0, 0, texSize, texSize);
+  const circleTexture = new THREE.CanvasTexture(texCanvas);
+
   // --- Main particles (point sprites) ---
   mainGeo = new THREE.BufferGeometry();
   mainGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   mainMat = new THREE.PointsMaterial({
     color: 0xffaa66,
     size: 0.04,
+    map: circleTexture,
     transparent: true,
     opacity: 0.5,
     blending: THREE.NormalBlending,

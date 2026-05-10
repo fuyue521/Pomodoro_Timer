@@ -76,7 +76,7 @@
       </div>
       <div class="settings-card-section">
         <button class="section-header collapsed">
-          <span class="scs-title">时间</span>
+          <span class="scs-title">专注时间</span>
           <svg class="section-arrow" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
             <path d="M4 2l6 5-6 5"/>
           </svg>
@@ -84,11 +84,15 @@
         <div class="section-body collapsed">
           <div class="setting-row">
             <label>专注时长 <span id="focus-val">25</span> 分钟</label>
-            <input type="range" id="focus-duration" min="5" max="60" step="5" value="25" />
+            <input type="range" id="focus-duration" min="5" max="60" step="1" value="25" />
           </div>
           <div class="setting-row">
             <label>休息时长 <span id="break-val">5</span> 分钟</label>
             <input type="range" id="break-duration" min="1" max="15" step="1" value="5" />
+          </div>
+          <div class="setting-row">
+            <label>长休息时长 <span id="longbreak-val">15</span> 分钟</label>
+            <input type="range" id="longbreak-duration" min="5" max="45" step="1" value="15" />
           </div>
           <div class="setting-row">
             <label>循环次数 <span id="cycle-val">4</span> 次</label>
